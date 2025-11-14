@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import React from 'react';
 import { type BallColor } from '../types';
 
 interface InfoPanelProps {
@@ -15,14 +14,11 @@ const formatPercent = (value: number): string => {
     return `${(value * 100).toFixed(1)}%`;
 }
 
-const CalculationCard: React.FC<{ title: string; children: React.ReactNode, isVisible?: boolean, actions?: React.ReactNode }> = ({ title, children, isVisible = true, actions }) => {
+const CalculationCard: React.FC<{ title: string; children: React.ReactNode, isVisible?: boolean }> = ({ title, children, isVisible = true }) => {
     if (!isVisible) return null;
     return (
         <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg shadow-sm transition-opacity duration-500">
-            <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-600 pb-2 mb-3">
-              <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">{title}</h3>
-              {actions}
-            </div>
+            <h3 className="text-lg font-semibold mb-3 text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-600 pb-2">{title}</h3>
             {children}
         </div>
     );
@@ -48,10 +44,6 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
   onSetEvidence,
   onReset,
 }) => {
-  const [explanation, setExplanation] = useState<string>('');
-  const [isExplaining, setIsExplaining] = useState<boolean>(false);
-  const [explanationError, setExplanationError] = useState<string>('');
-
   // 1. Priors
   const priorBox1 = 0.5;
   const priorBox2 = 0.5;
@@ -83,61 +75,6 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
   
   const capEvidence = evidenceColor ? evidenceColor.charAt(0).toUpperCase() + evidenceColor.slice(1) : '';
 
-  const handleExplain = async () => {
-    if (!evidenceColor) return;
-
-    setIsExplaining(true);
-    setExplanationError('');
-    setExplanation('');
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `You are a friendly and knowledgeable probability tutor explaining Bayes' Theorem to a student.
-The student has set up an experiment with two boxes of colored balls.
-
-Here is the setup:
-- Box 1: ${box1Config.red} red balls, ${box1Config.blue} blue balls. (Total: ${totalBox1})
-- Box 2: ${box2Config.red} red balls, ${box2Config.blue} blue balls. (Total: ${totalBox2})
-
-The student observed a **${evidenceColor}** ball.
-
-After applying Bayes' Theorem, the new probabilities are:
-- Probability it came from Box 1: ${formatPercent(posteriorBox1)}
-- Probability it came from Box 2: ${formatPercent(posteriorBox2)}
-
-Please provide a clear, step-by-step explanation for the student. Explain *why* the probability shifted the way it did. Speak directly to the student. Use simple language and avoid complex jargon where possible. Keep it concise and encouraging.`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-
-      setExplanation(response.text);
-    } catch (e) {
-      console.error(e);
-      setExplanationError('Failed to get an explanation. Please ensure your API key is configured correctly.');
-    } finally {
-      setIsExplaining(false);
-    }
-  };
-
-  const explainButton = (
-    <button
-        onClick={handleExplain}
-        disabled={isExplaining}
-        className="px-3 py-1 text-sm font-semibold bg-sky-500 text-white rounded-md hover:bg-sky-600 transition flex items-center gap-2 disabled:bg-slate-400 dark:disabled:bg-slate-500 disabled:cursor-not-allowed"
-        aria-label="Get an AI explanation for the calculation"
-    >
-        {isExplaining && (
-            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-        )}
-        {isExplaining ? 'Explaining...' : 'Explain'}
-    </button>
-  );
-
   return (
     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-xl flex flex-col space-y-4 h-full">
       <h2 className="text-2xl font-semibold text-center lg:text-left">Bayesian Calculator</h2>
@@ -168,11 +105,7 @@ Please provide a clear, step-by-step explanation for the student. Explain *why* 
         <ProbabilityRow label="P(Blue)" value={pBlue} />
       </CalculationCard>
 
-      <CalculationCard 
-        title={`4. Posterior Probabilities (After observing a ${capEvidence} ball)`} 
-        isVisible={!!evidenceColor}
-        actions={explainButton}
-      >
+      <CalculationCard title={`4. Posterior Probabilities (After observing a ${capEvidence} ball)`} isVisible={!!evidenceColor}>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
               After observing a <b>{evidenceColor}</b> ball, we update our beliefs about which box was chosen.
           </p>
@@ -183,19 +116,6 @@ Please provide a clear, step-by-step explanation for the student. Explain *why* 
           <ProbabilityRow label={`P(Box 1 | ${capEvidence})`} value={posteriorBox1} />
           <ProbabilityRow label={`P(Box 2 | ${capEvidence})`} value={posteriorBox2} />
       </CalculationCard>
-
-      {explanationError && (
-          <div className="p-4 bg-red-100 dark:bg-red-900/50 rounded-lg text-red-700 dark:text-red-200" role="alert">
-              <p className="font-semibold">Error</p>
-              <p>{explanationError}</p>
-          </div>
-      )}
-      {explanation && (
-          <div className="p-4 bg-emerald-50 dark:bg-emerald-900/50 rounded-lg">
-              <h4 className="font-semibold text-emerald-800 dark:text-emerald-200 mb-2">Gemini's Explanation</h4>
-              <div className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">{explanation}</div>
-          </div>
-      )}
 
        {!evidenceColor && (
         <div className="text-center p-4 bg-sky-50 dark:bg-sky-900/50 rounded-lg">
@@ -222,11 +142,7 @@ Please provide a clear, step-by-step explanation for the student. Explain *why* 
             </button>
         </div>
         <button
-            onClick={() => {
-              onReset();
-              setExplanation('');
-              setExplanationError('');
-            }}
+            onClick={onReset}
             className="w-full mt-4 px-4 py-3 bg-slate-600 text-white font-bold rounded-lg shadow-md hover:bg-slate-700 transition-all duration-200 flex items-center justify-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
